@@ -31,6 +31,27 @@ reset='\033[0m'
 
 # ===== Helpers =====
 
+# Deterministic per-session emoji — same session id always yields same emoji
+session_emoji() {
+    local sid="$1"
+    [ -z "$sid" ] && { printf '🤖'; return; }
+    local emojis=(
+        🦊 🐙 🦉 🐢 🦄 🐝 🦋 🐳 🦓 🦔 🦜 🐸 🦒 🐧 🦩 🦦 🐡 🦥 🐌 🦚
+        🦞 🐬 🦃 🐺 🦬 🐗 🦌 🐲 🦈 🐉 🦅 🐊 🦏 🦛 🐆 🐅 🦘 🐘 🦣 🦫
+        🐻 🐨 🐼 🦁 🐯 🦝 🐹 🐰 🦇 🐮 🐷 🐪 🐴 🐑 🐐 🐓 🐣 🕊 🐇 🦡
+        🐀 🐁 🐿 🦨 🐾 🐔 🐦 🦢 🦤 🪶 🐍 🦎 🦖 🦕 🐋 🦭 🐠 🐟 🦐 🦑
+        🦀 🐚 🪼 🪸 🌸 🌺 🌻 🌹 🌷 🌼 🪷 🏵 💐 🍀 🌿 🌵 🌴 🌲 🌳 🍁
+        🍄 🌰 🌾 🪴 🍎 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍒 🍑 🥝 🍍 🥥 🥑 🍆 🥕
+        🌽 🌶 🫑 🥦 🧄 🧅 🥒 🥜 🍞 🥐 🥨 🧀 🍕 🌮 🍣 🍤 🍙 🍜 🍦 🍩
+        🍪 🎂 🧁 🍫 🍬 🍭 🍯 🌍 🌎 🌏 🪐 🌙 ⭐ 🌟 ✨ ⚡ 🔥 🌈 ❄ ☃
+        🚀 🛸 🎈 🎨 🎭 🎪 🎯 🎲 🧩 🎸 🎺 🎷 🥁 🎻 🔔 💎 🔮 🧭 🗿 🛼
+    )
+    local h
+    h=$(printf '%s' "$sid" | md5sum 2>/dev/null | cut -c1-8)
+    [ -z "$h" ] && { printf '🤖'; return; }
+    printf '%s' "${emojis[$(( 16#$h % ${#emojis[@]} ))]}"
+}
+
 # Safe integer conversion — returns 0 for non-numeric input
 to_int() {
     local val="$1"
@@ -193,14 +214,15 @@ get_git_branch() {
 }
 
 # ===== Extract data from JSON (single jq call) =====
-IFS='|' read -r model_name size input_tokens cache_create cache_read cwd < <(
+IFS='|' read -r model_name size input_tokens cache_create cache_read cwd session_id < <(
     echo "$input" | jq -r '[
         (.model.display_name // "Claude"),
         (.context_window.context_window_size // 200000),
         (.context_window.current_usage.input_tokens // 0),
         (.context_window.current_usage.cache_creation_input_tokens // 0),
         (.context_window.current_usage.cache_read_input_tokens // 0),
-        (.workspace.current_dir // "")
+        (.workspace.current_dir // ""),
+        (.session_id // "")
     ] | join("|")'
 )
 
@@ -227,6 +249,7 @@ remain_comma=$(format_commas $(( size - current )))
 # ===== LINE 1: branch | Model | context bar | usage limits =====
 branch_name=$(get_git_branch)
 line1=""
+line1+="$(session_emoji "$session_id") "
 line1+="${blue}${model_name}${reset}"
 line1+=" ${dim}|${reset} "
 context_pie=$(build_pie "$pct_used")
